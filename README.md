@@ -1,6 +1,8 @@
 # CRYPTO TRADING BOT
 ⚠️***️ WARNING:*** This bot is for educational purposes only. Use at your own risk. By using this bot, you agree that you are responsible for any losses incurred. The author is not liable for any damages or losses resulting from the use of this bot. Please do your own research and use caution when trading cryptocurrencies.
 
+**DEV MESSAGE**: This bot is still in development and may not work as expected. If you encounter any issues or want to share ideas, please contact me through my [mail.](oomer9942@gmail.com)
+
 1. [Introduction](#introduction)
 2. [Setup](#setup)
    - [Requirements](#requirements)
@@ -27,13 +29,16 @@
 ### Installation:
 
 Create a file named `.env` in the same directory as the bot script and add your information. Here is an example of what it should look like:
+
+```text
+API_KEY=your_key_here
+DEBUG=True
 ```
+Install the required packages using pip:
+```bash
 pip3 install ccxt, dotenv, pandas
 ```
 
-```python
-TEA_TIME = 60  
-```
 ## Features
 ### Automated Trading Bot:
 
