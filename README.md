@@ -55,7 +55,7 @@ Mathematical trading bot that uses various strategies to trade:
 ## How to Use
 ### Check Available Commands:
 To check the available commands, run the bot with the `a` option:
-![](assets/clear meta data.png)
+![](assets/show_features.png)
 
 ### Buy/Sell:
 #### Market Orders:

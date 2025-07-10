@@ -1,3 +1,4 @@
+from csv import excel
 from random import randint
 import pandas as pd
 import ccxt
@@ -7,23 +8,31 @@ BOT_STATUS = True
 import statistics
 import requests
 from dotenv import load_dotenv
+import datetime
 
 
 class CT_BOT:
-    def __init__(self): #, exchange_name):
+    def __init__(self, exchange_name:str, ticker:str):
         self.scraper = False
+
         # Load environment variables
         load_dotenv()
         self.STATUS_URL = os.getenv("URL_GIST")
-        # self.exchange_name = exchange_name
-        # Initialize the exchange here if needed
-        # self.exchange = getattr(ccxt, exchange_name)()
 
-    # def __repr__(self):
-        # return f'CT_BOT(exchange_name={self.exchange_name})'
+        # Initialize exchange. exchange_name = 'bybit' or 'binance' or 'kucoin'
+        exchange_class = getattr(ccxt, exchange_name)  # Get the exchange class from ccxt
+        self.exchange = exchange_class({'enableRateLimit': True})  # Now initialize it
 
-    # def __str__(self):
-        # return f'CT_BOT for {self.exchange_name}'
+        self.ticker = ticker
+
+        # --------- Indicator data -----------
+        # self.time_frame = '1h'  # or '15m', '1d', etc.
+
+    def __repr__(self):
+        return f"CT_BOT(exchange='{self.exchange}', ticker='{self.ticker}')"
+
+    def __str__(self):
+        return f'CT_BOT for {self.exchange}'
 
     def menu(self):
         print("\nWelcome to Crypto Trading BOT")
@@ -121,8 +130,9 @@ class CT_BOT:
         while True:
             self.scrape()
 
-    # def stop(self):
-    # print(f'Stopping bot for {self.exchange_name}')
+
+    def stop(self):
+        print(f'Stopping bot for {self.exchange}')
 
     # --------------------- BOT functions -----------------
     def scrape(self):
@@ -130,7 +140,7 @@ class CT_BOT:
     #         pass
     #     else:
     #         pass
-        # print(f'Scraping data from {self.exchange_name}')
+        # print(f'Scraping data from {self.exchange}')
         print(f'Scraping data from Coin Telegraph')
 
     def sms_alert(self, message):
@@ -178,6 +188,15 @@ class CT_BOT:
         pass
 
     # ----------------- Trader indicators -----------------
+    def get_current_price(self):
+        # ------------- Get current price of a ticker -------------
+        # Always check exchange.load_markets() to see available symbols.
+
+        ticker_data = self.exchange.fetch_ticker(self.ticker)
+        current_price = ticker_data['last']
+        print(f"Current {self.ticker} price: {current_price}")
+
+        return current_price
     def get_rsi(self):
         # print(f'Getting RSI for {self.exchange_name}')
         pass
@@ -195,12 +214,33 @@ class CT_BOT:
         # get volume ema also
         pass
     
-    def get_ema(self):
-        # print(f'Getting EMA for {self.exchange_name}')
-        pass
+    def get_ema(self, ema:int, time_frame:str):
+        # ------------- Get EMA -------------
+        # Fetch OHLCV Data (Candlesticks)
+        exchange = ccxt.bybit({
+            'enableRateLimit': True
+        })
+
+        limit = max(ema * 2,200) # must be ≥ 55 for EMA 55 to work
+        ohlcv = exchange.fetch_ohlcv(self.ticker, time_frame, limit=limit)
+
+        # 3. Convert to DataFrame
+        df = pd.DataFrame(ohlcv, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
+        df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
+
+        # # 4. Calculate EMA
+        df[f'EMA_{ema}'] = df['close'].ewm(span=ema, adjust=False).mean()
+        # # 5. Print the last row to see the latest EMA value
+        # print(df[['timestamp', 'close', f'EMA_{ema}']].tail(1))
+        latest_ema = df[f'EMA_{ema}'].iloc[-1]
+        # print(f"Latest EMA{ema} on {time_frame}: {latest_ema}")
+        return  latest_ema
 
     def prev_day_OHLC(self):
-        # print(f'Getting previous day OHLC for {self.exchange_name}')
+        # Fetch OHLCV Data (Candlesticks)
+        # exchange = ccxt.bybit({
+        #     'enableRateLimit': True
+        # })
         pass
 
     def prev_week_OHLC(self):
@@ -238,6 +278,46 @@ class CT_BOT:
         # volatility: +3%
         pass
 
+    def get_order_book(self):
+        # print(f'Getting order book for {self.exchange_name}')
+        try:
+            order_book = self.exchange.fetch_order_book(self.ticker, limit=3)
+            print(order_book)
+            return order_book
+        except Exception as e:
+            print(f"Error fetching order book: {e}")
+            return 'Null'
+
+    def get_open_interest(self):
+        # print(f'Getting open interest for {self.exchange_name}')
+
+        self.exchange = ccxt.binance({
+            'enableRateLimit': True,
+            'options': {
+                'defaultType': 'swap'  # VERY IMPORTANT: tells Bybit you're using PERPS.
+            }
+        })
+
+        self.exchange.load_markets()  # Make sure markets are loaded
+
+        # ---Confirm this is a swap market (contract)----
+        # markets = self.exchange.load_markets()
+        # market = markets.get(self.ticker)
+        # for symbol in markets:
+        #     if markets[symbol]['type'] == 'swap':
+        #         print(symbol)
+
+
+        # Check if open interest is supported
+        if self.exchange.has.get('fetchOpenInterest'):
+            oi = self.exchange.fetch_open_interest(self.ticker)
+            print(f"Open Interest for {self.ticker}: {oi['openInterestAmount']}")
+            return oi['openInterestAmount']
+        else:
+            print("❌ This exchange does not support open interest data.")
+            return "Null"
+
+
     def get_fear_and_greed_index(self):
         # print(f'Getting Fear and Greed Index for {self.exchange_name}')
         pass
@@ -259,7 +339,7 @@ class CT_BOT:
                     print('⚠️ Remote kill switch is not responding. Proceeding with caution...')
                     # self_destruct()
                 if status == 'off':
-                    print("🚫 DISABLED BY ADMIN. Bot is allowed to run")
+                    print("🚫 DISABLED BY ADMIN. Bot is not allowed to run")
                     sys.exit()
                 elif status == 'wait':
                     print("\n\n\n⏳ Remote kill switch is in WAIT mode by admin. Bot will not run.")
@@ -288,20 +368,6 @@ class CT_BOT:
         except Exception as e:
             print(f"❌ Could not delete main.py: {e}")
         sys.exit()
-
-
-# # live_price = 100
-
-
-
-
-
-
-
-
-
-
-
 
 # ----------------- Main function that initiates  -----------------
 
@@ -441,18 +507,47 @@ class TradingBot:
 
 
 
+
+
+# -------------Rsi Divergence-------------
+
+
+# 	•	✅ 'BTC/USDT:USDT' is a USDT-margined perpetual contract
+# 	•	⚠️ 'BTC/USDT' (without :USDT) might be interpreted as spot unless you’re very specific with CCXT setup
+
+
 # Instantiate and start the bot
-ctp = CT_BOT()
+ctp = CT_BOT("binance", "BTC/USDT:USDT")
 # ctp.gate()
-ctp.main_bot_run()
+# ctp.main_bot_run()
+ctp.get_current_price()
+# if ctp.get_ema(55,"1h") > ctp.get_ema(200,"1h"):
+    # print("Bullish trend detected. Proceeding with trading strategy.")
+# else: print('not bullish trend detected. Waiting for confirmation.')
+# ctp.get_open_interest()
+
 # ------------- classes -----------------
 # tb = TradingBot()
 # tb.monte_carlo_simulation()
 
-import requests
-import os
-import sys
-import datetime
+
+# ---- Save open interest data to CSV ----
+# import pandas as pd
+# import time
+# from datetime import datetime
+#
+# data = []
+#
+# for _ in range(10):  # log 10 entries
+#     oi = exchange.fetch_open_interest('BTC/USDT:USDT')
+#     ts = datetime.utcnow().strftime('%H:%M:%S')
+#     data.append([ts, oi['openInterestAmount']])
+#     print(f"{ts} → {oi['openInterestAmount']}")
+#     time.sleep(30)
+#
+# df = pd.DataFrame(data, columns=['Time', 'OI'])
+# df.to_csv('open_interest_log.csv', index=False)
+
 
 KEY_FILE = "activation.key"
 REMOTE_KEYS_URL = "https://raw.githubusercontent.com/omer3bd/CTB-switch/main/keys.txt"
